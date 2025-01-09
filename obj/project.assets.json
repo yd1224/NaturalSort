@@ -8,32 +8,24 @@
     "net9.0": []
   },
   "packageFolders": {
-    "C:\\Users\\Techniker\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/elizavetademcenko/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Techniker\\source\\repos\\NaturalSort\\NaturalSort\\NaturalSort.csproj",
+      "projectUniqueName": "/Users/elizavetademcenko/MyProjects/NaturalSort/NaturalSort.csproj",
       "projectName": "NaturalSort",
-      "projectPath": "C:\\Users\\Techniker\\source\\repos\\NaturalSort\\NaturalSort\\NaturalSort.csproj",
-      "packagesPath": "C:\\Users\\Techniker\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Techniker\\source\\repos\\NaturalSort\\NaturalSort\\obj\\",
+      "projectPath": "/Users/elizavetademcenko/MyProjects/NaturalSort/NaturalSort.csproj",
+      "packagesPath": "/Users/elizavetademcenko/.nuget/packages/",
+      "outputPath": "/Users/elizavetademcenko/MyProjects/NaturalSort/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\Techniker\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/Users/elizavetademcenko/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -73,7 +65,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.100/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/Users/elizavetademcenko/.dotnet/sdk/9.0.100/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

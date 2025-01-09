@@ -9,7 +9,7 @@ class Program
     const long _3GB = 3L * 1024 * 1024 * 1024; //size of total integers in bytes (not the file size)
     static async Task Main()
     {
-        //await TestModifiedSort.TestSort(_2GB);
+        await TestModifiedSort.TestSort(1000);
         //await TestUnmodifiedSort.TestSort(100);
     }
 }

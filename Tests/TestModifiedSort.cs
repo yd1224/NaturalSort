@@ -19,7 +19,7 @@ namespace NaturalSort.Tests
             RandomNumberFileGenerator.GenerateRandomInputFile(inputFilePath, intNumbers);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             Console.WriteLine("Sorting " + intNumbers + " integers");
-            await ModifiedNaturalSort.Sort(inputFilePath, outputFilePath, ramSize);
+            await SortingMethods.NaturalSort.Sort(inputFilePath, outputFilePath);
             stopwatch.Stop();
             Console.WriteLine("Time taken: " + stopwatch.Elapsed.TotalSeconds + " seconds");
 
