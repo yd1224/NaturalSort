@@ -17,11 +17,7 @@ namespace NaturalSort.Tests
             string outputFilePath = "output.txt";
             Console.WriteLine("Generating random input file with " + intNumbers + " integers");
             RandomNumberFileGenerator.GenerateRandomInputFile(inputFilePath, intNumbers);
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            Console.WriteLine("Sorting " + intNumbers + " integers");
             await SortingMethods.NaturalSort.Sort(inputFilePath, outputFilePath);
-            stopwatch.Stop();
-            Console.WriteLine("Time taken: " + stopwatch.Elapsed.TotalSeconds + " seconds");
 
             Directory.Delete(tempDirectory, true);
         }

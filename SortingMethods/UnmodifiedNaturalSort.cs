@@ -1,107 +1,213 @@
-﻿namespace NaturalSort.SortingMethods
+﻿using NaturalSort.CustomReaders;
+
+namespace NaturalSort.SortingMethods
 {
     public class UnmodifiedNaturalSort
     {
+        // Directory for temporary files
+        private static string tempDirectory = "temp";
+
         public static async Task Sort(string inputFilePath, string outputFilePath)
         {
-            var fileContent = await ReadFileAsync(inputFilePath);
-            var sortedRuns = CreateSortedRuns(fileContent);
-            var fullySortedRun = MergeSortedRuns(sortedRuns);
-            await WriteFileAsync(outputFilePath, fullySortedRun);
-        }
-        
-        static async Task<List<int>> ReadFileAsync(string inputFilePath)
-        {
-            List<int> fileContent = new List<int>();
-            using (StreamReader reader = new StreamReader(inputFilePath))
+            if (!Directory.Exists(tempDirectory))
             {
-                string line;
-                while ((line = await reader.ReadLineAsync()) != null)
+                Directory.CreateDirectory(tempDirectory);
+            }
+
+            string fileB = Path.Combine(tempDirectory, "fileB.txt");
+            string fileC = Path.Combine(tempDirectory, "fileC.txt");
+            string fileA = Path.Combine(tempDirectory, "fileA.txt");
+            
+            File.Copy(inputFilePath, fileA, true);
+            string currentA = fileA;
+            string mergedFile = Path.Combine(tempDirectory, "merged.txt");
+
+            while (true)
+            {
+                // Step 1: Split file A into B and C
+                await SplitIntoRuns(currentA, fileB, fileC);
+
+                // If one of the files is empty, sorting is done
+                if (IsFileEmpty(fileC))
                 {
-                    fileContent.Add(int.Parse(line));
+                    File.Copy(currentA, outputFilePath, true);
+                    break;
+                }
+
+                // Step 2: Merge runs from B and C into A
+                await MergeRuns(fileB, fileC, mergedFile);
+
+                // Step 3: Prepare for the next iteration
+                File.Copy(mergedFile, currentA, true);
+                File.Delete(mergedFile);
+            }
+
+            if (Directory.Exists((tempDirectory)))
+            {
+                try
+                {
+                    Directory.Delete(tempDirectory);
+                }
+                catch(Exception)
+                {
+                    
                 }
             }
-            return fileContent;
         }
-        
-        static async Task WriteFileAsync(string outputFilePath, List<int> fileContent)
+
+        private static async Task SplitIntoRuns(string inputFile, string fileB, string fileC)
         {
-            using (StreamWriter writer = new StreamWriter(outputFilePath))
+            using var reader = new StreamReader(inputFile);
+            using var writerB = new StreamWriter(fileB);
+            using var writerC = new StreamWriter(fileC);
+
+            bool writeToB = true;
+            List<int> currentRun = new();
+
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
             {
-                foreach (var number in fileContent)
+                int value = int.Parse(line);
+
+                if (currentRun.Count == 0 || value >= currentRun[^1])
                 {
-                    await writer.WriteLineAsync(number.ToString());
-                }
-            }
-        }
-        
-        static List<List<int>> CreateSortedRuns(List<int> originalFileContent)
-        {
-            List<List<int>> sortedRuns = new List<List<int>>();
-            List<int> currentRun = new List<int>();
-            for (int i = 0; i < originalFileContent.Count; i++)
-            {
-                currentRun.Add(originalFileContent[i]);
-                if (i == originalFileContent.Count - 1 || originalFileContent[i] > originalFileContent[i + 1])
-                {
-                    sortedRuns.Add(currentRun);
-                    currentRun = new List<int>();
-                }
-            }
-            return sortedRuns;
-        }
-        
-        static List<int> MergeSortedRuns(List<List<int>> sortedRuns)
-        {
-            while (sortedRuns.Count > 1)
-            {
-                List<List<int>> mergedRuns = new List<List<int>>();
-                for (int i = 0; i < sortedRuns.Count; i += 2)
-                {
-                    if (i + 1 < sortedRuns.Count)
-                    {
-                        mergedRuns.Add(MergeTwoRuns(sortedRuns[i], sortedRuns[i + 1]));
-                    }
-                    else
-                    {
-                        // Add the leftover list as-is.
-                        mergedRuns.Add(sortedRuns[i]);
-                    }
-                }
-                sortedRuns = mergedRuns;
-            }
-            // Return the single merged list
-            return sortedRuns[0];
-        }
-        
-        static List<int> MergeTwoRuns(List<int> run1, List<int> run2)
-        {
-            List<int> mergedRun = new List<int>();
-            int i = 0, j = 0;
-            while (i < run1.Count && j < run2.Count)
-            {
-                if (run1[i] < run2[j])
-                {
-                    mergedRun.Add(run1[i]);
-                    i++;
+                    // Continue the current run
+                    currentRun.Add(value);
                 }
                 else
                 {
-                    mergedRun.Add(run2[j]);
-                    j++;
+                    // Write the completed run to the appropriate file
+                    await WriteRunToFile(currentRun, writeToB ? writerB : writerC);
+                    writeToB = !writeToB; // Switch files
+                    currentRun.Clear();
+                    currentRun.Add(value);
                 }
             }
-            while (i < run1.Count)
+
+            // Write the final run
+            if (currentRun.Count > 0)
             {
-                mergedRun.Add(run1[i]);
-                i++;
+                await WriteRunToFile(currentRun, writeToB ? writerB : writerC);
             }
-            while (j < run2.Count)
+        }
+
+        private static async Task WriteRunToFile(List<int> run, StreamWriter writer)
+        {
+            foreach (int num in run)
             {
-                mergedRun.Add(run2[j]);
-                j++;
+                await writer.WriteLineAsync(num.ToString());
             }
-            return mergedRun;
+        }
+
+        private static async Task MergeRuns(string fileB, string fileC, string outputFile)
+        {
+            using var customReaderB = new StreamReaderExtended();
+            customReaderB.reader = new StreamReader(fileB);
+            
+            using var customReaderC = new StreamReaderExtended();
+            customReaderC.reader = new StreamReader(fileC);
+ 
+            await using var writer = new StreamWriter(outputFile);
+
+            Queue<int> runB = ReadNextRun(customReaderB);
+            Queue<int> runC = ReadNextRun(customReaderC);
+
+            while ((runB != null || runC != null))
+            {
+                if (runB == null)
+                {
+                    await WriteRemainingRuns(runC, writer);
+                    runC = ReadNextRun(customReaderC);
+                }
+                else if (runC == null)
+                {
+                    await WriteRemainingRuns(runB, writer);
+                    runB = ReadNextRun(customReaderB);
+                }
+                else
+                {
+                    // Merge the two runs
+                    while (runB.Count > 0 && runC.Count > 0)
+                    {
+                        if (runB.Peek() <= runC.Peek())
+                        {
+                            var value = runB.Dequeue().ToString();
+                            await writer.WriteLineAsync(value);
+                        }
+                        else
+                        {
+                            var value = runC.Dequeue().ToString();
+                            await writer.WriteLineAsync(value);
+                        }
+                    }
+
+                    if (runB.Count == 0)
+                    {
+                        runB = ReadNextRun(customReaderB);
+                    }
+                    if (runC.Count == 0)
+                    {
+                        runC = ReadNextRun(customReaderC);
+                    }
+                }
+            }
+
+            // Write any remaining numbers in either queue
+            if (runB != null && runB.Count > 0)
+            {
+                await WriteRemainingRuns(runB, writer);
+            }
+
+            if (runC != null && runC.Count > 0)
+            {
+                await WriteRemainingRuns(runC, writer);
+            }
+        }
+
+
+        private static async Task WriteRemainingRuns(Queue<int> run, StreamWriter writer)
+        {
+            while (run?.Count > 0)
+            {
+                await writer.WriteLineAsync(run.Dequeue().ToString());
+            }
+        }
+        
+        private static Queue<int>? ReadNextRun(StreamReaderExtended reader)
+        {
+            Queue<int> run = new();
+            string? line;
+            int previous = -1;
+
+            while ((line = reader.reader.ReadLine()) != null)
+            {
+                if(reader.lookahead != null)
+                {
+                    run.Enqueue(reader.lookahead.Value);
+                    reader.lookahead = null;
+                }
+                
+                int value = int.Parse(line);
+                if (value < previous)
+                {
+                    // End of run
+                    reader.lookahead = value;
+                    return run;
+                }
+
+                run.Enqueue(value);
+                previous = value;
+            }
+
+            // Ensure the last run is returned if not empty
+            return run.Count > 0 ? run : null;
+        }
+
+
+        private static bool IsFileEmpty(string filePath)
+        {
+            return new FileInfo(filePath).Length == 0;
         }
     }
 }
+

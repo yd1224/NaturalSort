@@ -6,6 +6,12 @@ namespace NaturalSort.SortingMethods
     {
         // Directory for temporary files
         private static string tempDirectory = "temp";
+        
+        private static string FILE_B = Path.Combine(tempDirectory, "fileB.txt");
+        private static string FILE_C = Path.Combine(tempDirectory, "fileC.txt");
+        private static string FILE_A = Path.Combine(tempDirectory, "fileA.txt");
+        
+        private const int minRunSize = 1024*1024*1024/40;
 
         public static async Task Sort(string inputFilePath, string outputFilePath)
         {
@@ -13,35 +19,37 @@ namespace NaturalSort.SortingMethods
             {
                 Directory.CreateDirectory(tempDirectory);
             }
-
-            string fileB = Path.Combine(tempDirectory, "fileB.txt");
-            string fileC = Path.Combine(tempDirectory, "fileC.txt");
-            string fileA = Path.Combine(tempDirectory, "fileA.txt");
             
-            File.Copy(inputFilePath, fileA, true);
-            string currentA = fileA;
+            await PreSortInputFile(inputFilePath);
+            
+            string currentA = FILE_A;
             string mergedFile = Path.Combine(tempDirectory, "merged.txt");
-
+            
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            Console.WriteLine("Sorting...");
             while (true)
             {
                 // Step 1: Split file A into B and C
-                SplitIntoRuns(currentA, fileB, fileC);
+                await SplitIntoRuns(currentA, FILE_B, FILE_C);
 
                 // If one of the files is empty, sorting is done
-                if (IsFileEmpty(fileC))
+                if (IsFileEmpty(FILE_C))
                 {
                     File.Copy(currentA, outputFilePath, true);
                     break;
                 }
 
                 // Step 2: Merge runs from B and C into A
-                await MergeRuns(fileB, fileC, mergedFile);
+                await MergeRuns(FILE_B, FILE_C, mergedFile);
 
                 // Step 3: Prepare for the next iteration
                 File.Copy(mergedFile, currentA, true);
                 File.Delete(mergedFile);
             }
-
+            
+            stopwatch.Stop();
+            Console.WriteLine("Time taken: " + stopwatch.Elapsed.TotalSeconds + " seconds");
+            
             if (Directory.Exists((tempDirectory)))
             {
                 try
@@ -52,22 +60,58 @@ namespace NaturalSort.SortingMethods
                 {
                     
                 }
-                
             }
-            
         }
 
-        private static void SplitIntoRuns(string inputFile, string fileB, string fileC)
+        private static async Task PreSortInputFile(string inputFilePath)
+        {
+            using var reader = new StreamReader(inputFilePath);
+            await using var writer = new StreamWriter(FILE_A, append: false);
+    
+            List<int> numbers = new(minRunSize); // Preallocate based on minRunSize
+            string? line;
+    
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                if (int.TryParse(line, out int parsedNumber))
+                {
+                    numbers.Add(parsedNumber);
+                }
+        
+                if (numbers.Count >= minRunSize)
+                {
+                    WriteSortedChunk(numbers, writer);
+                }
+            }
+    
+            // Write any remaining numbers
+            if (numbers.Count > 0)
+            {
+                WriteSortedChunk(numbers, writer);
+            }
+        }
+
+        private static void WriteSortedChunk(List<int> numbers, StreamWriter writer)
+        {
+            numbers.Sort();
+            foreach (int num in numbers)
+            {
+                writer.WriteLine(num.ToString()); // Avoids async overhead for each line
+            }
+            numbers.Clear(); // Clear for reuse
+        }
+
+        private static async Task SplitIntoRuns(string inputFile, string fileB, string fileC)
         {
             using var reader = new StreamReader(inputFile);
-            using var writerB = new StreamWriter(fileB);
-            using var writerC = new StreamWriter(fileC);
+            await using var writerB = new StreamWriter(fileB, append: false);
+            await using var writerC = new StreamWriter(fileC, append: false);
 
             bool writeToB = true;
             List<int> currentRun = new();
 
             string? line;
-            while ((line = reader.ReadLine()) != null)
+            while ((line = await reader.ReadLineAsync()) != null)
             {
                 int value = int.Parse(line);
 
@@ -79,7 +123,7 @@ namespace NaturalSort.SortingMethods
                 else
                 {
                     // Write the completed run to the appropriate file
-                    WriteRunToFile(currentRun, writeToB ? writerB : writerC);
+                    await WriteRunToFile(currentRun, writeToB ? writerB : writerC);
                     writeToB = !writeToB; // Switch files
                     currentRun.Clear();
                     currentRun.Add(value);
@@ -89,15 +133,15 @@ namespace NaturalSort.SortingMethods
             // Write the final run
             if (currentRun.Count > 0)
             {
-                WriteRunToFile(currentRun, writeToB ? writerB : writerC);
+                await WriteRunToFile(currentRun, writeToB ? writerB : writerC);
             }
         }
 
-        private static void WriteRunToFile(List<int> run, StreamWriter writer)
+        private static async Task WriteRunToFile(List<int> run, StreamWriter writer)
         {
-            foreach (int num in run)
+            foreach (int value in run)
             {
-                writer.WriteLine(num);
+                await writer.WriteLineAsync(value.ToString());
             }
         }
 
@@ -108,23 +152,23 @@ namespace NaturalSort.SortingMethods
             
             using var customReaderC = new StreamReaderExtended();
             customReaderC.reader = new StreamReader(fileC);
- 
-            await using var writer = new StreamWriter(outputFile);
-
-            Queue<int> runB = ReadNextRun(customReaderB);
-            Queue<int> runC = ReadNextRun(customReaderC);
-
+        
+            await using var writer = new StreamWriter(outputFile, append:true);
+        
+            Queue<int> runB = await ReadNextRun(customReaderB);
+            Queue<int> runC = await ReadNextRun(customReaderC);
+        
             while ((runB != null || runC != null))
             {
                 if (runB == null)
                 {
-                    await WriteRemainingRuns(runC, writer);
-                    runC = ReadNextRun(customReaderC);
+                    await WriteRemainingFile(customReaderC, writer);
+                    runC = null;
                 }
                 else if (runC == null)
                 {
-                    await WriteRemainingRuns(runB, writer);
-                    runB = ReadNextRun(customReaderB);
+                    await WriteRemainingFile(customReaderB, writer);
+                    runB = null;
                 }
                 else
                 {
@@ -142,30 +186,28 @@ namespace NaturalSort.SortingMethods
                             await writer.WriteLineAsync(value);
                         }
                     }
-
                     if (runB.Count == 0)
                     {
-                        runB = ReadNextRun(customReaderB);
+                        runB = await ReadNextRun(customReaderB);
                     }
                     if (runC.Count == 0)
                     {
-                        runC = ReadNextRun(customReaderC);
+                        runC = await ReadNextRun(customReaderC);
                     }
                 }
             }
-
+        
             // Write any remaining numbers in either queue
-            if (runB != null && runB.Count > 0)
+            if (runB is { Count: > 0 })
             {
                 await WriteRemainingRuns(runB, writer);
             }
-
-            if (runC != null && runC.Count > 0)
+        
+            if (runC is { Count: > 0 })
             {
                 await WriteRemainingRuns(runC, writer);
             }
-        }
-
+        }  
 
         private static async Task WriteRemainingRuns(Queue<int> run, StreamWriter writer)
         {
@@ -174,39 +216,23 @@ namespace NaturalSort.SortingMethods
                 await writer.WriteLineAsync(run.Dequeue().ToString());
             }
         }
-
-        private static Queue<int>? ReadNextRun(StreamReader reader)
+        
+        private static async Task WriteRemainingFile(StreamReaderExtended reader, StreamWriter writer)
         {
-            Queue<int> run = new();
             string? line;
-            int previous = -1;
-
-            while ((line = reader.ReadLine()) != null)
+            while ((line = await reader.reader.ReadLineAsync()) != null)
             {
-                
-                int value = int.Parse(line);
-                if (value < previous)
-                {
-                    // End of run
-                    run.Enqueue(value);
-                    return run;
-                }
-
-                run.Enqueue(value);
-                previous = value;
+                await writer.WriteLineAsync(line);
             }
-
-            // Ensure the last run is returned if not empty
-            return run.Count > 0 ? run : null;
         }
         
-        private static Queue<int>? ReadNextRun(StreamReaderExtended reader)
+        private static async Task<Queue<int>>? ReadNextRun(StreamReaderExtended reader)
         {
             Queue<int> run = new();
             string? line;
             int previous = -1;
 
-            while ((line = reader.reader.ReadLine()) != null)
+            while ((line = await reader.reader.ReadLineAsync()) != null)
             {
                 if(reader.lookahead != null)
                 {
@@ -217,7 +243,6 @@ namespace NaturalSort.SortingMethods
                 int value = int.Parse(line);
                 if (value < previous)
                 {
-                    // End of run 361 609 789 561 654 439
                     reader.lookahead = value;
                     return run;
                 }
@@ -237,4 +262,3 @@ namespace NaturalSort.SortingMethods
         }
     }
 }
-
