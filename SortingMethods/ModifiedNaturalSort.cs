@@ -11,7 +11,7 @@ namespace NaturalSort.SortingMethods
         private static string FILE_C = Path.Combine(tempDirectory, "fileC.txt");
         private static string FILE_A = Path.Combine(tempDirectory, "fileA.txt");
         
-        private const int minRunSize = 1024*1024*5; 
+        private const int minRunSize = 1024*1024*3;
 
         public static async Task Sort(string inputFilePath, string outputFilePath)
         {
