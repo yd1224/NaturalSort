@@ -1,4 +1,5 @@
-﻿using NaturalSort.CustomReaders;
+﻿using System.Text;
+using NaturalSort.CustomReaders;
 
 namespace NaturalSort.SortingMethods
 {
@@ -6,6 +7,7 @@ namespace NaturalSort.SortingMethods
     {
         // Directory for temporary files
         private static string tempDirectory = "temp";
+        private static int? lookAhead = null;
 
         public static async Task Sort(string inputFilePath, string outputFilePath)
         {
@@ -19,36 +21,38 @@ namespace NaturalSort.SortingMethods
             string fileA = Path.Combine(tempDirectory, "fileA.txt");
             
             File.Copy(inputFilePath, fileA, true);
-            string currentA = fileA;
-            string mergedFile = Path.Combine(tempDirectory, "merged.txt");
 
             while (true)
             {
                 // Step 1: Split file A into B and C
-                await SplitIntoRuns(currentA, fileB, fileC);
-
+                await SplitIntoRuns(fileA, fileB, fileC);
+                
                 // If one of the files is empty, sorting is done
                 if (IsFileEmpty(fileC))
                 {
-                    File.Copy(currentA, outputFilePath, true);
+                    File.Copy(fileB, outputFilePath, true);
                     break;
                 }
+                
+                if (!File.Exists(fileA))
+                {
+                    using (File.Create(fileA)) { }
+                }
 
+                
                 // Step 2: Merge runs from B and C into A
-                await MergeRuns(fileB, fileC, mergedFile);
-
-                // Step 3: Prepare for the next iteration
-                File.Copy(mergedFile, currentA, true);
-                File.Delete(mergedFile);
+                await MergeRuns(fileB, fileC, fileA);
             }
 
             if (Directory.Exists((tempDirectory)))
             {
                 try
                 {
+                    File.Delete(fileB);
+                    File.Delete(fileC);
                     Directory.Delete(tempDirectory);
                 }
-                catch(Exception)
+                catch(Exception ex)
                 {
                     
                 }
@@ -89,6 +93,8 @@ namespace NaturalSort.SortingMethods
             {
                 await WriteRunToFile(currentRun, writeToB ? writerB : writerC);
             }
+            
+            File.Delete(inputFile);
         }
 
         private static async Task WriteRunToFile(List<int> run, StreamWriter writer)
@@ -101,11 +107,8 @@ namespace NaturalSort.SortingMethods
 
         private static async Task MergeRuns(string fileB, string fileC, string outputFile)
         {
-            using var customReaderB = new StreamReaderExtended();
-            customReaderB.reader = new StreamReader(fileB);
-            
-            using var customReaderC = new StreamReaderExtended();
-            customReaderC.reader = new StreamReader(fileC);
+            using var customReaderB = new StreamReader(fileB);
+            using var customReaderC = new StreamReader(fileC);
  
             await using var writer = new StreamWriter(outputFile);
 
@@ -173,25 +176,25 @@ namespace NaturalSort.SortingMethods
             }
         }
         
-        private static Queue<int>? ReadNextRun(StreamReaderExtended reader)
+        private static Queue<int>? ReadNextRun(StreamReader reader)
         {
             Queue<int> run = new();
             string? line;
             int previous = -1;
 
-            while ((line = reader.reader.ReadLine()) != null)
+            while ((line = reader.ReadLine()) != null)
             {
-                if(reader.lookahead != null)
+                if(lookAhead != null)
                 {
-                    run.Enqueue(reader.lookahead.Value);
-                    reader.lookahead = null;
+                    run.Enqueue(lookAhead.Value);
+                    lookAhead = null;
                 }
                 
                 int value = int.Parse(line);
                 if (value < previous)
                 {
                     // End of run
-                    reader.lookahead = value;
+                    lookAhead = value;
                     return run;
                 }
 
@@ -202,8 +205,7 @@ namespace NaturalSort.SortingMethods
             // Ensure the last run is returned if not empty
             return run.Count > 0 ? run : null;
         }
-
-
+        
         private static bool IsFileEmpty(string filePath)
         {
             return new FileInfo(filePath).Length == 0;

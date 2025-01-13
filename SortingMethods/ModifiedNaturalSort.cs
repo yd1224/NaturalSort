@@ -6,12 +6,12 @@ namespace NaturalSort.SortingMethods
     {
         // Directory for temporary files
         private static string tempDirectory = "temp";
-        
+        private static int? lookAhead = null;
         private static string FILE_B = Path.Combine(tempDirectory, "fileB.txt");
         private static string FILE_C = Path.Combine(tempDirectory, "fileC.txt");
         private static string FILE_A = Path.Combine(tempDirectory, "fileA.txt");
         
-        private const int minRunSize = 1024*1024*1024/40;
+        private const int minRunSize = 1024*1024*5; 
 
         public static async Task Sort(string inputFilePath, string outputFilePath)
         {
@@ -22,29 +22,27 @@ namespace NaturalSort.SortingMethods
             
             await PreSortInputFile(inputFilePath);
             
-            string currentA = FILE_A;
-            string mergedFile = Path.Combine(tempDirectory, "merged.txt");
-            
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             Console.WriteLine("Sorting...");
             while (true)
             {
                 // Step 1: Split file A into B and C
-                await SplitIntoRuns(currentA, FILE_B, FILE_C);
+                await SplitIntoRuns(FILE_A, FILE_B, FILE_C);
 
                 // If one of the files is empty, sorting is done
                 if (IsFileEmpty(FILE_C))
                 {
-                    File.Copy(currentA, outputFilePath, true);
+                    File.Copy(FILE_B, outputFilePath, true);
                     break;
+                }
+                
+                if (!File.Exists(FILE_A))
+                {
+                    using (File.Create(FILE_A)) { }
                 }
 
                 // Step 2: Merge runs from B and C into A
-                await MergeRuns(FILE_B, FILE_C, mergedFile);
-
-                // Step 3: Prepare for the next iteration
-                File.Copy(mergedFile, currentA, true);
-                File.Delete(mergedFile);
+                await MergeRuns(FILE_B, FILE_C, FILE_A);
             }
             
             stopwatch.Stop();
@@ -67,7 +65,6 @@ namespace NaturalSort.SortingMethods
         {
             using var reader = new StreamReader(inputFilePath);
             await using var writer = new StreamWriter(FILE_A, append: false);
-    
             List<int> numbers = new(minRunSize); // Preallocate based on minRunSize
             string? line;
     
@@ -135,6 +132,8 @@ namespace NaturalSort.SortingMethods
             {
                 await WriteRunToFile(currentRun, writeToB ? writerB : writerC);
             }
+            
+            File.Delete(FILE_A);
         }
 
         private static async Task WriteRunToFile(List<int> run, StreamWriter writer)
@@ -147,11 +146,8 @@ namespace NaturalSort.SortingMethods
 
         private static async Task MergeRuns(string fileB, string fileC, string outputFile)
         {
-            using var customReaderB = new StreamReaderExtended();
-            customReaderB.reader = new StreamReader(fileB);
-            
-            using var customReaderC = new StreamReaderExtended();
-            customReaderC.reader = new StreamReader(fileC);
+            using var customReaderB = new StreamReader(fileB);
+            using var customReaderC = new StreamReader(fileC);
         
             await using var writer = new StreamWriter(outputFile, append:true);
         
@@ -162,11 +158,13 @@ namespace NaturalSort.SortingMethods
             {
                 if (runB == null)
                 {
+                    await WriteRemainingRuns(runC, writer);
                     await WriteRemainingFile(customReaderC, writer);
                     runC = null;
                 }
                 else if (runC == null)
                 {
+                    await WriteRemainingRuns(runB, writer);
                     await WriteRemainingFile(customReaderB, writer);
                     runB = null;
                 }
@@ -217,33 +215,33 @@ namespace NaturalSort.SortingMethods
             }
         }
         
-        private static async Task WriteRemainingFile(StreamReaderExtended reader, StreamWriter writer)
+        private static async Task WriteRemainingFile(StreamReader reader, StreamWriter writer)
         {
             string? line;
-            while ((line = await reader.reader.ReadLineAsync()) != null)
+            while ((line = await reader.ReadLineAsync()) != null)
             {
                 await writer.WriteLineAsync(line);
             }
         }
         
-        private static async Task<Queue<int>>? ReadNextRun(StreamReaderExtended reader)
+        private static async Task<Queue<int>>? ReadNextRun(StreamReader reader)
         {
             Queue<int> run = new();
             string? line;
             int previous = -1;
 
-            while ((line = await reader.reader.ReadLineAsync()) != null)
+            while ((line = await reader.ReadLineAsync()) != null)
             {
-                if(reader.lookahead != null)
+                if(lookAhead != null)
                 {
-                    run.Enqueue(reader.lookahead.Value);
-                    reader.lookahead = null;
+                    run.Enqueue(lookAhead.Value);
+                    lookAhead = null;
                 }
                 
                 int value = int.Parse(line);
                 if (value < previous)
                 {
-                    reader.lookahead = value;
+                    lookAhead = value;
                     return run;
                 }
 
